@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Logic Learning Platform</title>
+    
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}" />
+</head>
+
+<body>
+
+    <header class="site-header">
+        <div class="container header-inner">
+            <div class="brand">
+                <h1 class="site-title">Logic Learning Platform</h1>
+                <span class="tagline">Propositional logic reasoning engine (group project)</span>
+            </div>
+            <nav class="top-nav" aria-label="Main navigation">
+                
+                <a href="{{ url_for('logout') }}" onclick="event.preventDefault(); document.getElementById('logout-form').submit();">Log Out</a>
+                
+                <form id="logout-form" action="{{ url_for('logout') }}" method="POST" style="display: none;"></form>
+            </nav>
+        </div>
+    </header>
+
+    <section class="hero">
+        <div class="container">
+            <h2 class="hero-title">Learn Propositional Logic Through Practice</h2>
+            <p class="hero-subtitle">
+                Interactive tools to help you understand logic statements, truth tables,
+                and inference rules with step-by-step reasoning.
+            </p>
+        </div>
+    </section>
+
+    <main class="container">
+        <!-- Logic Input -->
+        <section id="logic-input" class="card">
+            <h2>Logic Input</h2>
+            <p class="muted">
+                Enter facts and rules using ∧ ∨ ¬ → ↔. Example: (P ∧ Q) → R
+            </p>
+            <div class="input-row">
+                <input type="text" id="logicStatement" placeholder="Type a statement like: (P ∧ Q) → R" autocomplete="off" />
+                <button id="addStatementBtn" type="button" class="btn primary">
+                    Add
+                </button>
+            </div>
+            <div class="ops" aria-label="Logic operator buttons">
+                <button type="button" class="op-btn btn light" data-op="∧">∧ AND</button>
+                <button type="button" class="op-btn btn light" data-op="∨">∨ OR</button>
+                <button type="button" class="op-btn btn light" data-op="¬">¬ NOT</button>
+                <button type="button" class="op-btn btn light" data-op="→">→ IMPLIES</button>
+                <button type="button" class="op-btn btn light" data-op="↔">↔ IFF</button>
+            </div>
+            <p id="inputMessage" class="message muted" aria-live="polite"></p>
+            
+        </section>
+
+        <!-- Knowledge Base + Truth Table -->
+        <section class="grid-2" aria-label="Workspace panels">
+            <section id="knowledge-base" class="card">
+                <h2>Knowledge Base</h2>
+                <p class="muted">
+                    Statements you add show here. Delete any incorrect rule before running inference.
+                </p>
+                <ul id="statementsList" class="statements"></ul>
+                <p class="muted" id="kbEmptyState">
+                    Empty for now. Add at least one statement above.
+                </p>
+            </section>
+            <section id="truth-table" class="card">
+                <h2>Truth Table</h2>
+                <p class="muted">
+                    Generates a truth table from the current knowledge base (used for evaluation).
+                </p>
+                <button type="button" id="generateTruthTableBtn" class="btn primary">
+                    Generate Truth Table
+                </button>
+                <div id="truthTableResult" class="table-box">
+                    <p class="muted">No truth table generated yet.</p>
+                </div>
+            </section>
+        </section>
+
+        <!-- Inference Engine -->
+        <section id="inference-engine" class="card">
+            <h2>Inference Engine</h2>
+            <p class="muted">
+                Choose an inference approach and view the derived conclusion and steps.
+            </p>
+            <div class="input-row">
+                <button type="button" id="runInferenceBtn" class="btn primary">
+                    Run Inference
+                </button>
+                <select id="methodSelect" class="btn light" aria-label="Inference method">
+                    <option value="truth-table">Truth Table Check</option>
+                    <option value="modus-ponens">Modus Ponens (Placeholder)</option>
+                    <option value="resolution">Resolution (Placeholder)</option>
+                </select>
+                
+                <input type="text" id="queryStatement" placeholder="Query (e.g., P)" autocomplete="off" style="flex: 1; min-width: 150px; padding: 0.7rem 0.8rem; border: 1px solid var(--border); border-radius: 10px; outline: none; background: #fff;">
+            </div>
+            <div id="inferenceResult" class="result-box">
+                <p class="muted">No inference result yet.</p>
+            </div>
+        </section>
+    </main>
+
+    <footer class="site-footer">
+        <div class="container footer-content">
+            <div class="footer-brand">
+                <h3>Logic Learning Platform</h3>
+                <p>
+                    An interactive platform designed to help students understand propositional logic through practice.
+                </p>
+            </div>
+            <div class="footer-links">
+                <div class="footer-column">
+                    <h4>Resources</h4>
+                    <div class="footer-links-row">
+                        <a href="#">Documentation</a>
+                        <a href="#">Tutorials</a>
+                        <a href="https://github.com/" target="_blank" rel="noopener">GitHub</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="container footer-bottom">
+            <p>© 2025 Logic Learning Platform. All rights reserved.</p>
+        </div>
+    </footer>
+
+    
+    <script src="{{ url_for('static', filename='js/scripts.js') }}"></script>
+</body>
+
+</html>
