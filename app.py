@@ -1,12 +1,20 @@
-import streamlit as st
+from flask import Flask, render_template, request, jsonify, session, redirect, url_for, flash
 from sympy import symbols, SympifyError, sympify
 from sympy.logic.boolalg import And, Or, Not, Implies, Equivalent
 from sympy.logic.inference import satisfiable, valid
 from collections import OrderedDict
+import uuid
 import re
 
-# (Keep your backend logic functions here, e.g., parse_statement, get_all_symbols, generate_truth_table_data, run_truth_table_inference)
-# ... (your existing functions like parse_statement, get_all_symbols, etc. go here) ...
+
+from werkzeug.security import generate_password_hash, check_password_hash
+
+app = Flask(__name__)
+app.secret_key = 'your_secret_key_here' 
+
+
+users = {}
+
 
 OPERATORS = {
     '∧': And,
@@ -15,6 +23,8 @@ OPERATORS = {
     '→': Implies,
     '↔': Equivalent
 }
+
+
 
 def parse_statement(statement_str):
     potential_symbols = set(re.findall(r'[A-Za-z][A-Za-z0-9]*', statement_str))
@@ -88,136 +98,174 @@ def run_truth_table_inference(knowledge_base_exprs, query_expr):
     return is_derivable, steps, str(query_expr)
 
 
-# --- Streamlit UI starts here ---
-st.set_page_config(layout="wide", page_title="Logic Learning Platform")
 
-st.title("Logic Learning Platform")
-st.markdown("Interactive tools to help you understand logic statements, truth tables, and inference rules.")
+@app.route('/')
+def index():
+    return render_template('index.html')
 
-# Initialize session state for statements if not already present
-if 'statements' not in st.session_state:
-    st.session_state.statements = []
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        email = request.form['email']
+        password = request.form['password']
 
-# Logic Input Section
-st.header("Logic Input")
-statement_input = st.text_input(
-    "Enter a logical statement (e.g., (P & Q) >> R)",
-    key="logic_statement_input"
-)
+        user = users.get(email)
 
-col1, col2, col3, col4, col5 = st.columns(5)
-with col1:
-    if st.button("∧ AND"):
-        st.session_state.logic_statement_input += " ∧ "
-with col2:
-    if st.button("∨ OR"):
-        st.session_state.logic_statement_input += " ∨ "
-with col3:
-    if st.button("¬ NOT"):
-        st.session_state.logic_statement_input += "¬"
-with col4:
-    if st.button("→ IMPLIES"):
-        st.session_state.logic_statement_input += " → "
-with col5:
-    if st.button("↔ IFF"):
-        st.session_state.logic_statement_input += " ↔ "
-
-if st.button("Add Statement to Knowledge Base"):
-    if statement_input:
-        try:
-            # Validate and parse the statement
-            parsed_expr = parse_statement(statement_input)
-            # Check for duplicates
-            if any(parse_statement(s['text']) == parsed_expr for s in st.session_state.statements):
-                st.warning("This statement already exists in the knowledge base.")
-            else:
-                st.session_state.statements.append({'id': str(len(st.session_state.statements)), 'text': statement_input})
-                st.success(f"Added: `{statement_input}`")
-        except ValueError as e:
-            st.error(f"Error: {e}")
-        except Exception as e:
-            st.error(f"An unexpected error occurred: {e}")
-    else:
-        st.warning("Please enter a statement.")
-
-st.markdown("---")
-
-# Knowledge Base and Truth Table Sections
-col_kb, col_tt = st.columns(2)
-
-with col_kb:
-    st.header("Knowledge Base")
-    if st.session_state.statements:
-        for i, stmt_data in enumerate(st.session_state.statements):
-            display_col, delete_col = st.columns([0.8, 0.2])
-            with display_col:
-                st.write(f"**{i+1}.** `{stmt_data['text']}`")
-            with delete_col:
-                if st.button("Delete", key=f"delete_btn_{stmt_data['id']}"):
-                    st.session_state.statements.pop(i)
-                    st.experimental_rerun() # Rerun to update the list
-    else:
-        st.info("Knowledge base is empty. Add statements above.")
-
-with col_tt:
-    st.header("Truth Table")
-    if st.button("Generate Truth Table"):
-        if st.session_state.statements:
-            try:
-                statements_exprs = [parse_statement(s['text']) for s in st.session_state.statements]
-                headers, rows_data = generate_truth_table_data(statements_exprs)
-
-                # Convert OrderedDict rows to list of lists for st.table or st.dataframe
-                if rows_data:
-                    df_data = []
-                    for row in rows_data:
-                        df_data.append(list(row.values()))
-                    st.dataframe(df_data, column_names=headers, hide_index=True)
-                else:
-                    st.info("No truth table generated (e.g., no symbols in statements).")
-
-            except ValueError as e:
-                st.error(f"Error generating truth table: {e}")
-            except Exception as e:
-                st.error(f"An unexpected error occurred: {e}")
+        if user and check_password_hash(user['password_hash'], password):
+            session['logged_in'] = True
+            session['user_id'] = email
+            session['statements'] = []
+            flash('Logged in successfully!', 'success')
+            return redirect(url_for('index'))
         else:
-            st.warning("Add statements to the knowledge base first.")
+            flash('Invalid credentials. Please try again.', 'error')
+            return render_template('login.html')
+    return render_template('login.html')
 
-st.markdown("---")
+@app.route('/register', methods=['GET', 'POST'])
+def register():
+    if request.method == 'POST':
+        full_name = request.form['full_name']
+        email = request.form['email']
+        password = request.form['password']
 
-# Inference Engine Section
-st.header("Inference Engine")
-query_input = st.text_input("Enter a query statement for inference (e.g., R)", key="query_input")
-inference_method = st.selectbox(
-    "Select Inference Method",
-    ["Truth Table Check", "Modus Ponens (Placeholder)", "Resolution (Placeholder)"],
-    key="inference_method_select"
-)
+        if not full_name or not email or not password:
+            flash('All fields are required.', 'error')
+            return render_template('register.html')
 
-if st.button("Run Inference"):
-    if not st.session_state.statements:
-        st.warning("Add statements to the knowledge base first.")
-    elif not query_input:
-        st.warning("Please enter a query statement.")
+        if len(password) < 6:
+            flash('Password must be at least 6 characters long.', 'error')
+            return render_template('register.html')
+
+        if email in users:
+            flash('Email already registered. Please use a different email or log in.', 'error')
+            return render_template('register.html')
+
+        
+        hashed_password = generate_password_hash(password, method='pbkdf2:sha256')
+
+        users[email] = {
+            'full_name': full_name,
+            'password_hash': hashed_password
+        }
+
+        flash(f'Registration successful for {full_name} ({email})! Please log in.', 'success')
+        return redirect(url_for('login'))
+
+    return render_template('register.html')
+
+@app.route('/logout', methods=['POST'])
+def logout():
+    session.pop('logged_in', None)
+    session.pop('user_id', None)
+    session.pop('statements', None)
+    flash('You have been logged out.', 'info')
+    return redirect(url_for('login'))
+
+@app.before_request
+def require_login():
+    if request.endpoint not in ['login', 'register', 'static'] and not session.get('logged_in'):
+        return redirect(url_for('login'))
+
+@app.route('/api/add_statement', methods=['POST'])
+def add_statement():
+    data = request.get_json()
+    statement_str = data.get('statement')
+    if not statement_str:
+        return jsonify({'success': False, 'message': 'Statement cannot be empty.'}), 400
+    try:
+        expr = parse_statement(statement_str)
+        for stmt_data in session.get('statements', []):
+            existing_expr = parse_statement(stmt_data['text'])
+            if expr == existing_expr:
+                return jsonify({'success': False, 'message': 'Statement already exists.'}), 409
+        new_statement = {
+            'id': str(uuid.uuid4()),
+            'text': statement_str
+        }
+        session.setdefault('statements', []).append(new_statement)
+        session.modified = True
+        return jsonify({'success': True, 'message': 'Statement added successfully.'})
+    except ValueError as e:
+        return jsonify({'success': False, 'message': str(e)}), 400
+    except Exception as e:
+        app.logger.error(f"Error adding statement: {e}", exc_info=True)
+        return jsonify({'success': False, 'message': 'An unexpected server error occurred.'}), 500
+
+@app.route('/api/get_statements', methods=['GET'])
+def get_statements():
+    return jsonify({'success': True, 'statements': session.get('statements', [])})
+
+@app.route('/api/delete_statement', methods=['POST'])
+def delete_statement():
+    data = request.get_json()
+    statement_id = data.get('id')
+    if not statement_id:
+        return jsonify({'success': False, 'message': 'Statement ID is required.'}), 400
+    statements = session.get('statements', [])
+    original_len = len(statements)
+    session['statements'] = [s for s in statements if s['id'] != statement_id]
+    session.modified = True
+    if len(session['statements']) < original_len:
+        return jsonify({'success': True, 'message': 'Statement deleted successfully.'})
     else:
-        try:
-            knowledge_base_exprs = [parse_statement(s['text']) for s in st.session_state.statements]
-            query_expr = parse_statement(query_input)
+        return jsonify({'success': False, 'message': 'Statement not found.'}), 404
 
-            if inference_method == "Truth Table Check":
-                is_derivable, steps, conclusion = run_truth_table_inference(knowledge_base_exprs, query_expr)
-                st.subheader("Inference Result")
-                if is_derivable:
-                    st.success(f"Conclusion `{conclusion}` is derivable from the knowledge base.")
-                else:
-                    st.error(f"Conclusion `{conclusion}` is NOT derivable from the knowledge base.")
-                st.write("--- Steps ---")
-                for step in steps:
-                    st.markdown(f"- {step}")
-            else:
-                st.info(f"'{inference_method}' is a placeholder. Please select 'Truth Table Check'.")
+@app.route('/api/generate_truth_table', methods=['POST'])
+def generate_truth_table():
+    statements_data = session.get('statements', [])
+    if not statements_data:
+        return jsonify({'success': False, 'message': 'No statements in knowledge base to generate truth table.'}), 400
+    try:
+        statements_exprs = [parse_statement(s['text']) for s in statements_data]
+        headers, rows_data = generate_truth_table_data(statements_exprs)
+        json_rows = [dict(row) for row in rows_data]
+        return jsonify({'success': True, 'headers': headers, 'rows': json_rows})
+    except ValueError as e:
+        return jsonify({'success': False, 'message': str(e)}), 400
+    except Exception as e:
+        app.logger.error(f"Error generating truth table: {e}", exc_info=True)
+        return jsonify({'success': False, 'message': 'An unexpected server error occurred during truth table generation.'}), 500
 
-        except ValueError as e:
-            st.error(f"Error: {e}")
-        except Exception as e:
-            st.error(f"An unexpected error occurred during inference: {e}")
+@app.route('/api/run_inference', methods=['POST'])
+def run_inference():
+    data = request.get_json()
+    query_str = data.get('query')
+    method = data.get('method')
+    if not query_str:
+        return jsonify({'success': False, 'message': 'Query statement cannot be empty.'}), 400
+    statements_data = session.get('statements', [])
+    if not statements_data:
+        return jsonify({'success': False, 'message': 'No statements in knowledge base to run inference.'}), 400
+    try:
+        knowledge_base_exprs = [parse_statement(s['text']) for s in statements_data]
+        query_expr = parse_statement(query_str)
+        is_derivable = False
+        steps = []
+        conclusion = query_str
+        if method == 'truth-table':
+            is_derivable, steps, conclusion = run_truth_table_inference(knowledge_base_exprs, query_expr)
+        elif method == 'modus-ponens':
+            steps = ["Modus Ponens inference is a placeholder.", "Please select 'Truth Table Check'."]
+            is_derivable = False
+        elif method == 'resolution':
+            steps = ["Resolution inference is a placeholder.", "Please select 'Truth Table Check'."]
+            is_derivable = False
+        else:
+            return jsonify({'success': False, 'message': 'Invalid inference method selected.'}), 400
+        return jsonify({
+            'success': True,
+            'result': {
+                'conclusion': conclusion,
+                'derived': is_derivable,
+                'steps': steps
+            }
+        })
+    except ValueError as e:
+        return jsonify({'success': False, 'message': str(e)}), 400
+    except Exception as e:
+        app.logger.error(f"Error running inference: {e}", exc_info=True)
+        return jsonify({'success': False, 'message': 'An unexpected server error occurred during inference.'}), 500
+
+# if __name__ == '__main__':
+#     app.run(debug=True)
