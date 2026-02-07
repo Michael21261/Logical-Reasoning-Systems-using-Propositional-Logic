@@ -267,5 +267,5 @@ def run_inference():
         app.logger.error(f"Error running inference: {e}", exc_info=True)
         return jsonify({'success': False, 'message': 'An unexpected server error occurred during inference.'}), 500
 
-if __name__ == '__main__':
-     app.run(debug=True)
+# if __name__ == '__main__':
+#     app.run(debug=True)
